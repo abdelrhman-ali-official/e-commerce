@@ -13,11 +13,9 @@ namespace Services.Specifications
     {
         public ProductCountSpecifications(ProductSpecificationsParameters parameters)
             : base(product =>
-            (string.IsNullOrWhiteSpace(parameters.Search) || product.Name.ToLower().Contains(parameters.Search.ToLower().Trim())))
+            (string.IsNullOrWhiteSpace(parameters.Search) || product.Name.ToLower().Contains(parameters.Search.ToLower().Trim())) &&
+            (!parameters.CategoryId.HasValue || product.CategoryId == parameters.CategoryId.Value))
         {
-
-
-
         }
     }
 }

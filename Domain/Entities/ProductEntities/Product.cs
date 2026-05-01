@@ -12,10 +12,16 @@ namespace Domain.Entities.ProductEntities
         public required string Description { get; set; }
         public required string PictureUrl { get; set; }
         public decimal Price { get; set; }
+        public int Quantity { get; set; }
+        public int BrandId { get; set; }
+        public int CategoryId { get; set; }
         public decimal CostPrice { get; set; } // Admin only - for profit calculation
         public decimal? DiscountPercentage { get; set; } // 0-100
         public ProductColor Color { get; set; }
         public ProductSize Size { get; set; }
+
+        public Brand Brand { get; set; } = null!;
+        public Category Category { get; set; } = null!;
 
         // SEO Fields
         public string Slug { get; set; } = string.Empty; // URL-friendly name

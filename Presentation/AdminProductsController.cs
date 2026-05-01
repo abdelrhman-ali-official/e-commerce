@@ -45,6 +45,40 @@ namespace Presentation
             return NoContent();
         }
 
+        [HttpPost("categories")]
+        [ProducesResponseType(typeof(CategoryResultDTO), (int)HttpStatusCode.Created)]
+        public async Task<ActionResult<CategoryResultDTO>> CreateCategory([FromBody] CreateCategoryRequestDTO categoryDto)
+        {
+            var category = await _serviceManager.ProductService.CreateCategoryAsync(categoryDto);
+            return CreatedAtAction(nameof(GetCategories), new { }, category);
+        }
+
+        [HttpPost("brands")]
+        [ProducesResponseType(typeof(BrandResultDTO), (int)HttpStatusCode.Created)]
+        public async Task<ActionResult<BrandResultDTO>> CreateBrand([FromBody] CreateBrandRequestDTO brandDto)
+        {
+            var brand = await _serviceManager.ProductService.CreateBrandAsync(brandDto);
+            return CreatedAtAction(nameof(GetBrands), new { }, brand);
+        }
+
+        [HttpGet("brands")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(IEnumerable<BrandResultDTO>), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<IEnumerable<BrandResultDTO>>> GetBrands()
+        {
+            var brands = await _serviceManager.ProductService.GetAllBrandsAsync();
+            return Ok(brands);
+        }
+
+        [HttpGet("categories")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(IEnumerable<CategoryResultDTO>), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<IEnumerable<CategoryResultDTO>>> GetCategories()
+        {
+            var categories = await _serviceManager.ProductService.GetAllCategoriesAsync();
+            return Ok(categories);
+        }
+
         [HttpGet("{id}")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ProductResultDTO), (int)HttpStatusCode.OK)]

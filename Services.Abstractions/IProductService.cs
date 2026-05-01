@@ -22,6 +22,10 @@ namespace Services.Abstractions
         Task<ProductResultDTO> CreateProductAsync(CreateProductRequestDTO productDto);
         Task<ProductResultDTO> UpdateProductAsync(int id, UpdateProductRequestDTO productDto);
         Task DeleteProductAsync(int id);
+        Task<BrandResultDTO> CreateBrandAsync(CreateBrandRequestDTO brandDto);
+        Task<IEnumerable<BrandResultDTO>> GetAllBrandsAsync();
+        Task<CategoryResultDTO> CreateCategoryAsync(CreateCategoryRequestDTO categoryDto);
+        Task<IEnumerable<CategoryResultDTO>> GetAllCategoriesAsync();
 
         // Rating operations (for authenticated users)
         Task<ProductRatingDTO> AddRatingAsync(string userId, CreateProductRatingRequestDTO ratingDto);

@@ -18,6 +18,15 @@ namespace Shared.ProductModels
 
         public decimal? Price { get; init; }
 
+        [Range(0, int.MaxValue)]
+        public int? Quantity { get; init; }
+
+        [Range(1, int.MaxValue)]
+        public int? BrandId { get; init; }
+
+        [Range(1, int.MaxValue)]
+        public int? CategoryId { get; init; }
+
         public decimal? CostPrice { get; init; } // Admin only - cost price for profit calculation
 
         [Range(0, 100)]

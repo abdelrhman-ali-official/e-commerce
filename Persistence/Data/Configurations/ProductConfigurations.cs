@@ -13,6 +13,16 @@ namespace Persistence.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Product> builder)
         {
+            builder.HasOne(p => p.Brand)
+                .WithMany(b => b.Products)
+                .HasForeignKey(p => p.BrandId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(p => p.Category)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             builder.HasMany(p => p.ProductRatings)
                 .WithOne(r => r.Product)
                 .HasForeignKey(r => r.ProductId)
@@ -20,6 +30,15 @@ namespace Persistence.Data.Configurations
 
             builder.Property(p => p.Price)
                 .HasColumnType("decimal(18,2)")
+                .IsRequired();
+
+            builder.Property(p => p.Quantity)
+                .IsRequired();
+
+            builder.Property(p => p.BrandId)
+                .IsRequired();
+
+            builder.Property(p => p.CategoryId)
                 .IsRequired();
 
             builder.Property(p => p.DiscountPercentage)
@@ -42,6 +61,9 @@ namespace Persistence.Data.Configurations
             builder.Property(p => p.Size)
                 .HasConversion<int>()
                 .IsRequired();
+
+            builder.HasIndex(p => p.CategoryId);
+            builder.HasIndex(p => p.BrandId);
 
             // Ignore calculated properties
             builder.Ignore(p => p.FinalPrice);

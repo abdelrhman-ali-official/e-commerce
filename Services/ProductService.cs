@@ -52,8 +52,8 @@ namespace Services
 
         public async Task<ProductResultDTO?> GetProductBySlugAsync(string slug)
         {
-            var allProducts = await _unitOfWork.GetRepository<Product, int>().GetAllAsync();
-            var product = allProducts.FirstOrDefault(p => p.Slug == slug);
+            var specifications = new ProductWithBrandAndTypeSpecifications(slug);
+            var product = await _unitOfWork.GetRepository<Product, int>().GetAsync(specifications);
 
             if (product is null)
                 return null;
@@ -110,6 +110,9 @@ namespace Services
         // Admin operations
         public async Task<ProductResultDTO> CreateProductAsync(CreateProductRequestDTO productDto)
         {
+            await EnsureBrandExistsAsync(productDto.BrandId);
+            await EnsureCategoryExistsAsync(productDto.CategoryId);
+
             var product = _mapper.Map<Product>(productDto);
 
             // Generate SEO fields if not provided
@@ -154,6 +157,16 @@ namespace Services
             if (product is null)
                 throw new ProductNotFoundException(id.ToString());
 
+            if (productDto.CategoryId.HasValue)
+            {
+                await EnsureCategoryExistsAsync(productDto.CategoryId.Value);
+            }
+
+            if (productDto.BrandId.HasValue)
+            {
+                await EnsureBrandExistsAsync(productDto.BrandId.Value);
+            }
+
             // Update properties if provided
             if (!string.IsNullOrWhiteSpace(productDto.Name))
                 product.Name = productDto.Name;
@@ -163,6 +176,18 @@ namespace Services
 
             if (productDto.Price.HasValue)
                 product.Price = productDto.Price.Value;
+
+            if (productDto.Quantity.HasValue)
+                product.Quantity = productDto.Quantity.Value;
+
+            if (productDto.BrandId.HasValue)
+                product.BrandId = productDto.BrandId.Value;
+
+            if (productDto.CategoryId.HasValue)
+                product.CategoryId = productDto.CategoryId.Value;
+
+            if (productDto.CostPrice.HasValue)
+                product.CostPrice = productDto.CostPrice.Value;
 
             if (productDto.DiscountPercentage.HasValue)
                 product.DiscountPercentage = productDto.DiscountPercentage.Value;
@@ -175,6 +200,21 @@ namespace Services
 
             if (productDto.PictureUrl is not null)
                 product.PictureUrl = productDto.PictureUrl;
+
+            if (productDto.Slug is not null)
+                product.Slug = productDto.Slug;
+
+            if (productDto.SeoTitle is not null)
+                product.SeoTitle = productDto.SeoTitle;
+
+            if (productDto.MetaDescription is not null)
+                product.MetaDescription = productDto.MetaDescription;
+
+            if (productDto.MetaKeywords is not null)
+                product.MetaKeywords = productDto.MetaKeywords;
+
+            if (productDto.ImageAlt is not null)
+                product.ImageAlt = productDto.ImageAlt;
 
             _unitOfWork.GetRepository<Product, int>().Update(product);
             await _unitOfWork.SaveChangesAsync();
@@ -190,6 +230,74 @@ namespace Services
 
             _unitOfWork.GetRepository<Product, int>().Delete(product);
             await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task<BrandResultDTO> CreateBrandAsync(CreateBrandRequestDTO brandDto)
+        {
+            var brandRepository = _unitOfWork.GetRepository<Brand, int>();
+            var normalizedName = brandDto.Name.Trim();
+
+            var existingBrands = await brandRepository.GetAllAsync();
+            var exists = existingBrands.Any(b => b.Name.ToLower() == normalizedName.ToLower());
+            if (exists)
+            {
+                throw new ValidationException(new[] { $"Brand '{normalizedName}' already exists." });
+            }
+
+            var brand = new Brand { Name = normalizedName };
+            await brandRepository.AddAsync(brand);
+            await _unitOfWork.SaveChangesAsync();
+
+            return _mapper.Map<BrandResultDTO>(brand);
+        }
+
+        public async Task<IEnumerable<BrandResultDTO>> GetAllBrandsAsync()
+        {
+            var brands = await _unitOfWork.GetRepository<Brand, int>().GetAllAsync();
+            return _mapper.Map<IEnumerable<BrandResultDTO>>(brands.OrderBy(b => b.Name));
+        }
+
+        public async Task<CategoryResultDTO> CreateCategoryAsync(CreateCategoryRequestDTO categoryDto)
+        {
+            var categoryRepository = _unitOfWork.GetRepository<Category, int>();
+            var normalizedName = categoryDto.Name.Trim();
+
+            var existingCategories = await categoryRepository.GetAllAsync();
+            var exists = existingCategories.Any(c => c.Name.ToLower() == normalizedName.ToLower());
+            if (exists)
+            {
+                throw new ValidationException(new[] { $"Category '{normalizedName}' already exists." });
+            }
+
+            var category = new Category { Name = normalizedName };
+            await categoryRepository.AddAsync(category);
+            await _unitOfWork.SaveChangesAsync();
+
+            return _mapper.Map<CategoryResultDTO>(category);
+        }
+
+        public async Task<IEnumerable<CategoryResultDTO>> GetAllCategoriesAsync()
+        {
+            var categories = await _unitOfWork.GetRepository<Category, int>().GetAllAsync();
+            return _mapper.Map<IEnumerable<CategoryResultDTO>>(categories.OrderBy(c => c.Name));
+        }
+
+        private async Task EnsureCategoryExistsAsync(int categoryId)
+        {
+            var category = await _unitOfWork.GetRepository<Category, int>().GetAsync(categoryId);
+            if (category is null)
+            {
+                throw new ValidationException(new[] { $"Category with id '{categoryId}' does not exist." });
+            }
+        }
+
+        private async Task EnsureBrandExistsAsync(int brandId)
+        {
+            var brand = await _unitOfWork.GetRepository<Brand, int>().GetAsync(brandId);
+            if (brand is null)
+            {
+                throw new ValidationException(new[] { $"Brand with id '{brandId}' does not exist." });
+            }
         }
 
         // Rating operations

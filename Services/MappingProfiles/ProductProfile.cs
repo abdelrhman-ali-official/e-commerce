@@ -14,12 +14,11 @@ namespace Services.MappingProfiles
     {
         public ProductProfile()
         {
-            // ProductBrand and ProductType no longer exist
-
             CreateMap<ProductRating, ProductRatingDTO>()
                 .ForMember(d => d.UserName, options => options.MapFrom(s => s.User.UserName ?? "Anonymous"));
 
             CreateMap<Product, ProductResultDTO>()
+                .ForMember(d => d.CategoryName, options => options.MapFrom(s => s.Category.Name))
                 .ForMember(d => d.Color, options => options.MapFrom(s => s.Color.ToString()))
                 .ForMember(d => d.Size, options => options.MapFrom(s => s.Size.ToString()))
                 .ForMember(d => d.FinalPrice, options => options.MapFrom(s => s.FinalPrice))
@@ -28,6 +27,8 @@ namespace Services.MappingProfiles
                 .ForMember(d => d.CanonicalUrl, options => options.MapFrom(s => $"/products/{s.Slug}"));
 
             CreateMap<CreateProductRequestDTO, Product>();
+            CreateMap<Brand, BrandResultDTO>();
+            CreateMap<Category, CategoryResultDTO>();
             CreateMap<CreateProductRatingRequestDTO, ProductRating>();
         }
     }

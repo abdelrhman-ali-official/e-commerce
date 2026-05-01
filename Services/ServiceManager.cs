@@ -59,7 +59,8 @@ namespace Services
             _orderService = new Lazy<IOrderService>(() => new OrderService(
                 unitOfWork, 
                 mapper, 
-                serviceProvider.GetRequiredService<IFileStorageService>()));
+                serviceProvider.GetRequiredService<IFileStorageService>(),
+                serviceProvider.GetRequiredService<StoreContext>()));
             
             // Initialize payment service
             _paymentService = new Lazy<IPaymentService>(() => new PaymentService(

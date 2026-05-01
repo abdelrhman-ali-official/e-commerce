@@ -23,7 +23,9 @@ namespace Shared.ProductModels
             get => _pageSize;
             set => _pageSize = value > MAXPAGESIZE ? MAXPAGESIZE : value;
         }
+
         public string? Search { get; set; }
+        public int? CategoryId { get; set; }
     }
 
     public enum ProductSortingOptions

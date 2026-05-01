@@ -62,6 +62,24 @@ namespace Presentation
             return Ok(products);
         }
 
+        [HttpGet("categories")]
+        [ResponseCache(Duration = 600, Location = ResponseCacheLocation.Any)]
+        [ProducesResponseType(typeof(IEnumerable<CategoryResultDTO>), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<IEnumerable<CategoryResultDTO>>> GetCategories()
+        {
+            var categories = await _serviceManager.ProductService.GetAllCategoriesAsync();
+            return Ok(categories);
+        }
+
+        [HttpGet("brands")]
+        [ResponseCache(Duration = 600, Location = ResponseCacheLocation.Any)]
+        [ProducesResponseType(typeof(IEnumerable<BrandResultDTO>), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<IEnumerable<BrandResultDTO>>> GetBrands()
+        {
+            var brands = await _serviceManager.ProductService.GetAllBrandsAsync();
+            return Ok(brands);
+        }
+
         /// <summary>
         /// Get product structured data for Schema.org (JSON-LD)
         /// Used by frontend for SEO rich snippets

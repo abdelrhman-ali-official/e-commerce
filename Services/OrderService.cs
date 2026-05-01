@@ -4,6 +4,8 @@ using Domain.Entities.BasketEntities;
 using Domain.Entities.OrderEntities;
 using Domain.Entities.PaymentEntities;
 using Domain.Exceptions;
+using Microsoft.EntityFrameworkCore;
+using Persistence.Data;
 using Services.Abstractions;
 using Services.Specifications;
 using Shared.OrderModels;
@@ -20,12 +22,14 @@ namespace Services
         private readonly IUnitOFWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly IFileStorageService _fileStorageService;
+        private readonly StoreContext _storeContext;
 
-        public OrderService(IUnitOFWork unitOfWork, IMapper mapper, IFileStorageService fileStorageService)
+        public OrderService(IUnitOFWork unitOfWork, IMapper mapper, IFileStorageService fileStorageService, StoreContext storeContext)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _fileStorageService = fileStorageService;
+            _storeContext = storeContext;
         }
 
         public async Task<OrderResultDTO> CreateGuestOrderAsync(string basketId, GuestCheckoutRequestDTO checkoutDto)
@@ -72,53 +76,58 @@ namespace Services
             var totalPrice = subTotal + shippingCost;
             var estimatedDelivery = DateTime.UtcNow.AddDays(shippingInfo.DeliveryDays);
 
-            // Create order
-            var order = new Order
+            var order = await ExecuteInTransactionAsync(async () =>
             {
-                BasketId = basketId,
-                UserId = null,
-                OrderToken = Guid.NewGuid().ToString("N"), // Generate token for guest access
-                CustomerName = checkoutDto.CustomerName,
-                CustomerEmail = checkoutDto.CustomerEmail,
-                CustomerPhone = checkoutDto.CustomerPhone,
-                ShippingAddress = checkoutDto.ShippingAddress,
-                Governorate = checkoutDto.Governorate,
-                SubTotal = subTotal,
-                ShippingCost = shippingCost,
-                TotalPrice = totalPrice,
-                EstimatedDeliveryDate = estimatedDelivery,
-                PaymentMethod = paymentMethod,
-                PaymentStatus = Domain.Entities.PaymentEntities.PaymentStatus.Pending,
-                Status = OrderStatus.Pending,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                await ReserveStockOrThrowAsync(basket);
 
-            await _unitOfWork.GetRepository<Order, int>().AddAsync(order);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Create order items (snapshot of basket items with product details)
-            foreach (var item in basket.Items)
-            {
-                var orderItem = new OrderItem
+                var newOrder = new Order
                 {
-                    OrderId = order.Id,
-                    ProductId = item.ProductId,
-                    ProductName = item.Product.Name,
-                    ProductPictureUrl = item.Product.PictureUrl,
-                    Quantity = item.Quantity,
-                    Price = item.Price,
-                    CostPrice = item.Product.CostPrice, // Save cost price for profit calculation
-                    Color = item.Color,
-                    Size = item.Size
+                    BasketId = basketId,
+                    UserId = null,
+                    OrderToken = Guid.NewGuid().ToString("N"), // Generate token for guest access
+                    CustomerName = checkoutDto.CustomerName,
+                    CustomerEmail = checkoutDto.CustomerEmail,
+                    CustomerPhone = checkoutDto.CustomerPhone,
+                    ShippingAddress = checkoutDto.ShippingAddress,
+                    Governorate = checkoutDto.Governorate,
+                    SubTotal = subTotal,
+                    ShippingCost = shippingCost,
+                    TotalPrice = totalPrice,
+                    EstimatedDeliveryDate = estimatedDelivery,
+                    PaymentMethod = paymentMethod,
+                    PaymentStatus = Domain.Entities.PaymentEntities.PaymentStatus.Pending,
+                    Status = OrderStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 };
-                await _unitOfWork.GetRepository<OrderItem, int>().AddAsync(orderItem);
-            }
 
-            // Delete basket after order creation
-            _unitOfWork.GetRepository<Basket, string>().Delete(basket);
+                await _unitOfWork.GetRepository<Order, int>().AddAsync(newOrder);
+                await _unitOfWork.SaveChangesAsync();
 
-            await _unitOfWork.SaveChangesAsync();
+                // Create order items (snapshot of basket items with product details)
+                foreach (var item in basket.Items)
+                {
+                    var orderItem = new OrderItem
+                    {
+                        OrderId = newOrder.Id,
+                        ProductId = item.ProductId,
+                        ProductName = item.Product.Name,
+                        ProductPictureUrl = item.Product.PictureUrl,
+                        Quantity = item.Quantity,
+                        Price = item.Price,
+                        CostPrice = item.Product.CostPrice, // Save cost price for profit calculation
+                        Color = item.Color,
+                        Size = item.Size
+                    };
+                    await _unitOfWork.GetRepository<OrderItem, int>().AddAsync(orderItem);
+                }
+
+                // Delete basket after order creation
+                _unitOfWork.GetRepository<Basket, string>().Delete(basket);
+
+                await _unitOfWork.SaveChangesAsync();
+                return newOrder;
+            });
 
             // Upload payment proof if provided
             if (checkoutDto.PaymentProofFile != null && !string.IsNullOrWhiteSpace(checkoutDto.PayerPhone))
@@ -211,53 +220,58 @@ namespace Services
             var totalPrice = subTotal + shippingCost;
             var estimatedDelivery = DateTime.UtcNow.AddDays(shippingInfo.DeliveryDays);
 
-            // Create order
-            var order = new Order
+            var order = await ExecuteInTransactionAsync(async () =>
             {
-                BasketId = basket.Id,
-                UserId = userId,
-                OrderToken = Guid.NewGuid().ToString("N"), // Generate token for order tracking
-                CustomerName = checkoutDto.CustomerName,
-                CustomerEmail = checkoutDto.CustomerEmail,
-                CustomerPhone = checkoutDto.CustomerPhone,
-                ShippingAddress = checkoutDto.ShippingAddress,
-                Governorate = checkoutDto.Governorate,
-                SubTotal = subTotal,
-                ShippingCost = shippingCost,
-                TotalPrice = totalPrice,
-                EstimatedDeliveryDate = estimatedDelivery,
-                PaymentMethod = paymentMethod,
-                PaymentStatus = Domain.Entities.PaymentEntities.PaymentStatus.Pending,
-                Status = OrderStatus.Pending,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                await ReserveStockOrThrowAsync(basket);
 
-            await _unitOfWork.GetRepository<Order, int>().AddAsync(order);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Create order items (snapshot of basket items with product details)
-            foreach (var item in basket.Items)
-            {
-                var orderItem = new OrderItem
+                var newOrder = new Order
                 {
-                    OrderId = order.Id,
-                    ProductId = item.ProductId,
-                    ProductName = item.Product.Name,
-                    ProductPictureUrl = item.Product.PictureUrl,
-                    Quantity = item.Quantity,
-                    Price = item.Price,
-                    CostPrice = item.Product.CostPrice, // Save cost price for profit calculation
-                    Color = item.Color,
-                    Size = item.Size
+                    BasketId = basket.Id,
+                    UserId = userId,
+                    OrderToken = Guid.NewGuid().ToString("N"), // Generate token for order tracking
+                    CustomerName = checkoutDto.CustomerName,
+                    CustomerEmail = checkoutDto.CustomerEmail,
+                    CustomerPhone = checkoutDto.CustomerPhone,
+                    ShippingAddress = checkoutDto.ShippingAddress,
+                    Governorate = checkoutDto.Governorate,
+                    SubTotal = subTotal,
+                    ShippingCost = shippingCost,
+                    TotalPrice = totalPrice,
+                    EstimatedDeliveryDate = estimatedDelivery,
+                    PaymentMethod = paymentMethod,
+                    PaymentStatus = Domain.Entities.PaymentEntities.PaymentStatus.Pending,
+                    Status = OrderStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 };
-                await _unitOfWork.GetRepository<OrderItem, int>().AddAsync(orderItem);
-            }
 
-            // Delete basket after order creation
-            _unitOfWork.GetRepository<Basket, string>().Delete(basket);
+                await _unitOfWork.GetRepository<Order, int>().AddAsync(newOrder);
+                await _unitOfWork.SaveChangesAsync();
 
-            await _unitOfWork.SaveChangesAsync();
+                // Create order items (snapshot of basket items with product details)
+                foreach (var item in basket.Items)
+                {
+                    var orderItem = new OrderItem
+                    {
+                        OrderId = newOrder.Id,
+                        ProductId = item.ProductId,
+                        ProductName = item.Product.Name,
+                        ProductPictureUrl = item.Product.PictureUrl,
+                        Quantity = item.Quantity,
+                        Price = item.Price,
+                        CostPrice = item.Product.CostPrice, // Save cost price for profit calculation
+                        Color = item.Color,
+                        Size = item.Size
+                    };
+                    await _unitOfWork.GetRepository<OrderItem, int>().AddAsync(orderItem);
+                }
+
+                // Delete basket after order creation
+                _unitOfWork.GetRepository<Basket, string>().Delete(basket);
+
+                await _unitOfWork.SaveChangesAsync();
+                return newOrder;
+            });
 
             // Upload payment proof if provided
             if (checkoutDto.PaymentProofFile != null && !string.IsNullOrWhiteSpace(checkoutDto.PayerPhone))
@@ -338,22 +352,34 @@ namespace Services
             if (!Enum.IsDefined(typeof(OrderStatus), newStatus))
                 throw new ValidationException(new[] { "Invalid order status" });
 
-            order.Status = newStatus;
-            order.UpdatedAt = DateTime.UtcNow;
+            var previousStatus = order.Status;
 
-            // Update tracking number if provided
-            if (!string.IsNullOrWhiteSpace(trackingNumber))
-                order.TrackingNumber = trackingNumber;
+            await ExecuteInTransactionAsync(async () =>
+            {
+                if (previousStatus != OrderStatus.Cancelled && newStatus == OrderStatus.Cancelled)
+                {
+                    await RestoreStockForOrderItemsAsync(order.OrderItems);
+                }
 
-            // Set timestamps based on status
-            if (newStatus == OrderStatus.Shipping && order.ShippedAt == null)
-                order.ShippedAt = DateTime.UtcNow;
-            
-            if (newStatus == OrderStatus.Delivered && order.DeliveredAt == null)
-                order.DeliveredAt = DateTime.UtcNow;
+                order.Status = newStatus;
+                order.UpdatedAt = DateTime.UtcNow;
 
-            _unitOfWork.GetRepository<Order, int>().Update(order);
-            await _unitOfWork.SaveChangesAsync();
+                // Update tracking number if provided
+                if (!string.IsNullOrWhiteSpace(trackingNumber))
+                    order.TrackingNumber = trackingNumber;
+
+                // Set timestamps based on status
+                if (newStatus == OrderStatus.Shipping && order.ShippedAt == null)
+                    order.ShippedAt = DateTime.UtcNow;
+                
+                if (newStatus == OrderStatus.Delivered && order.DeliveredAt == null)
+                    order.DeliveredAt = DateTime.UtcNow;
+
+                _unitOfWork.GetRepository<Order, int>().Update(order);
+                await _unitOfWork.SaveChangesAsync();
+
+                return true;
+            });
 
             // Reload to get updated data
             var updatedOrder = await _unitOfWork.GetRepository<Order, int>().GetAsync(spec);
@@ -397,6 +423,81 @@ namespace Services
             await _unitOfWork.SaveChangesAsync();
 
             return _mapper.Map<GovernorateShippingDTO>(governorate);
+        }
+
+        private async Task ReserveStockOrThrowAsync(Basket basket)
+        {
+            var groupedItems = basket.Items
+                .GroupBy(item => item.ProductId)
+                .Select(group => new
+                {
+                    ProductId = group.Key,
+                    RequestedQuantity = group.Sum(item => item.Quantity),
+                    ProductName = group.First().Product.Name
+                });
+
+            foreach (var groupedItem in groupedItems)
+            {
+                var reserved = await TryDecrementProductStockAsync(groupedItem.ProductId, groupedItem.RequestedQuantity);
+                if (!reserved)
+                {
+                    throw new ValidationException(new[]
+                    {
+                        $"Insufficient stock for product '{groupedItem.ProductName}'. Requested quantity: {groupedItem.RequestedQuantity}."
+                    });
+                }
+            }
+        }
+
+        private async Task<bool> TryDecrementProductStockAsync(int productId, int quantity)
+        {
+            if (quantity <= 0)
+                return true;
+
+            var affectedRows = await _storeContext.Set<Domain.Entities.ProductEntities.Product>()
+                .Where(p => p.Id == productId && p.Quantity >= quantity)
+                .ExecuteUpdateAsync(setters =>
+                    setters.SetProperty(p => p.Quantity, p => p.Quantity - quantity));
+
+            return affectedRows > 0;
+        }
+
+        private async Task RestoreStockForOrderItemsAsync(IEnumerable<OrderItem> orderItems)
+        {
+            var groupedItems = orderItems
+                .GroupBy(item => item.ProductId)
+                .Select(group => new
+                {
+                    ProductId = group.Key,
+                    RestoreQuantity = group.Sum(item => item.Quantity)
+                });
+
+            foreach (var groupedItem in groupedItems)
+            {
+                if (groupedItem.RestoreQuantity <= 0)
+                    continue;
+
+                await _storeContext.Set<Domain.Entities.ProductEntities.Product>()
+                    .Where(p => p.Id == groupedItem.ProductId)
+                    .ExecuteUpdateAsync(setters =>
+                        setters.SetProperty(p => p.Quantity, p => p.Quantity + groupedItem.RestoreQuantity));
+            }
+        }
+
+        private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
+        {
+            await using var transaction = await _storeContext.Database.BeginTransactionAsync();
+            try
+            {
+                var result = await operation();
+                await transaction.CommitAsync();
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }
